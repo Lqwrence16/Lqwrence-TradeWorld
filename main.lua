@@ -12,8 +12,9 @@
 ]]
 
 --// Load Library
-local Library =
-	loadstring(game:HttpGet("https://raw.githubusercontent.com/deividcomsono/Obsidian/refs/heads/main/source.lua"))()
+local Library = loadstring(
+	game:HttpGet("https://raw.githubusercontent.com/Lqwrence16/Lqwrence-TradeWorld/refs/heads/main/library.lua")
+)()
 -- If you're using a local copy, replace the above with:
 -- local Library = loadstring(readfile("LRXUI.lua"))()
 
