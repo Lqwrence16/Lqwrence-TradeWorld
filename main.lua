@@ -48,27 +48,6 @@ local MainTab = Window:AddTab({
 	Icon = "home",
 	Description = "General settings and basic controls",
 })
-
-local VisualsTab = Window:AddTab({
-	Name = "Visuals",
-	Icon = "eye",
-	Description = "ESP, Chams, and world visuals",
-})
-
-local CombatTab = Window:AddTab({
-	Name = "Combat",
-	Icon = "swords",
-	Description = "Aimbot, silent aim, and weapon mods",
-})
-
-local MiscTab = Window:AddTab({
-	Name = "Misc",
-	Icon = "settings",
-	Description = "Utilities, macros, and fun stuff",
-})
-
-local KeyTab = Window:AddKeyTab("Key System")
-
 --// ============================================
 --// MAIN TAB
 --// ============================================
@@ -78,8 +57,6 @@ local RightMain = MainTab:AddRightGroupbox("Information", "info")
 
 --// Left Main: Basic Controls
 do
-	LeftMain:AddLabel("Welcome to LRXUI", true, 14)
-
 	LeftMain:AddDivider()
 
 	-- Toggle (Switch style)
@@ -316,56 +293,6 @@ do
 		Title = "Hidden Color",
 		Transparency = 0.5,
 	})
-end
-
---// ============================================
---// COMBAT TAB
---// ============================================
-
-local LeftCombat = CombatTab:AddLeftGroupbox("Aimbot", "crosshair")
-local RightCombat = CombatTab:AddRightGroupbox("Weapon", "zap")
-
-do
-	local AimToggle = LeftCombat:AddToggle("AimbotEnabled", {
-		Text = "Aimbot",
-		Default = false,
-		Risky = true,
-		Tooltip = "Automatically aims at targets",
-	})
-
-	AimToggle:AddKeyPicker("AimbotKey", {
-		Default = "MB2",
-		Mode = "Hold",
-		Text = "Aimbot Key",
-		Callback = function(Value)
-			print("Aimbot key state:", Value)
-		end,
-	})
-
-	LeftCombat:AddSlider("AimbotSmoothing", {
-		Text = "Smoothing",
-		Default = 0.1,
-		Min = 0,
-		Max = 1,
-		Rounding = 2,
-	})
-
-	LeftCombat:AddDropdown("AimbotPart", {
-		Text = "Target Part",
-		Values = { "Head", "Torso", "HumanoidRootPart" },
-		Default = "Head",
-	})
-
-	-- Tabbox for weapon mods
-	local WeaponTabbox = RightCombat:AddTabbox({ Side = 1, Name = "Weapon Mods" })
-	local RecoilTab = WeaponTabbox:AddTab("Recoil")
-	local SpreadTab = WeaponTabbox:AddTab("Spread")
-
-	RecoilTab:AddToggle("NoRecoil", { Text = "No Recoil", Default = false })
-	RecoilTab:AddSlider("RecoilScale", { Text = "Recoil %", Default = 100, Min = 0, Max = 100, Rounding = 0 })
-
-	SpreadTab:AddToggle("NoSpread", { Text = "No Spread", Default = false })
-	SpreadTab:AddSlider("SpreadScale", { Text = "Spread %", Default = 100, Min = 0, Max = 100, Rounding = 0 })
 end
 
 --// ============================================
