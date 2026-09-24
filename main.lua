@@ -124,40 +124,145 @@ pcall(function()
 end)
 
 --// ============================================
---// BOOTH NUMBERING SYSTEM
+--// BOOTH NUMBERING SYSTEM -- ROBUST SCANNER
 --// ============================================
 local BoothNumberMap = {} -- uuid -> number
 local NumberToBooth = {} -- number -> uuid
 
+local function ExtractNumberFromName(name)
+	-- Patterns: Booth1, Booth_1, Booth-1, TradeBooth1, 1_Booth, etc.
+	local patterns = {
+		"^[^%d]*(%d+)$", -- ends with number
+		"^(%d+)[^%d]*$", -- starts with number
+		"[^%d](%d+)[^%d]*$", -- number before end
+		"^[^%d]*(%d+)[^%d]*$", -- any number
+	}
+	for _, pat in ipairs(patterns) do
+		local num = tonumber(name:match(pat))
+		if num then
+			return num
+		end
+	end
+	return nil
+end
+
+local function GetIndexFromAttributes(instance)
+	local attrNames = {
+		"Index",
+		"BoothIndex",
+		"Number",
+		"BoothNumber",
+		"Id",
+		"BoothId",
+		"Slot",
+		"Position",
+		"Order",
+		"BoothNum",
+		"Num",
+	}
+	for _, attrName in ipairs(attrNames) do
+		local val = instance:GetAttribute(attrName)
+		if val ~= nil then
+			if type(val) == "number" then
+				return val
+			elseif type(val) == "string" then
+				local num = tonumber(val)
+				if num then
+					return num
+				end
+			end
+		end
+	end
+	return nil
+end
+
+local function GetIndexFromValues(instance)
+	local valueNames = { "Index", "Number", "BoothNumber", "Id", "BoothId", "Slot", "Position", "Order" }
+	for _, valName in ipairs(valueNames) do
+		local child = instance:FindFirstChild(valName)
+		if child and (child:IsA("IntValue") or child:IsA("NumberValue") or child:IsA("StringValue")) then
+			local num = tonumber(child.Value)
+			if num then
+				return num
+			end
+		end
+	end
+	return nil
+end
+
 local function ScanBoothNumbers()
 	BoothNumberMap = {}
 	NumberToBooth = {}
+	local unmapped = {}
+
 	for _, booth in ipairs(BoothsFolder:GetChildren()) do
-		if booth:IsA("Model") or booth:IsA("Folder") then
-			for _, child in ipairs(booth:GetDescendants()) do
-				if child:IsA("BasePart") and child:GetAttribute("TradePad") == true then
-					local idx = child:GetAttribute("Index")
-					if type(idx) == "string" then
-						idx = tonumber(idx)
-					end
+		if not (booth:IsA("Model") or booth:IsA("Folder")) then
+			continue
+		end
+
+		local idx = nil
+
+		-- Method 1: Look for TradePad part with index attributes
+		for _, child in ipairs(booth:GetDescendants()) do
+			if child:IsA("BasePart") then
+				local isTradePad = child:GetAttribute("TradePad") == true
+					or child:GetAttribute("TradePad") == "true"
+					or child.Name:lower():find("tradepad")
+					or child.Name:lower():find("boothpad")
+					or child.Name:lower():find("pad")
+
+				if isTradePad then
+					idx = GetIndexFromAttributes(child)
 					if idx then
-						BoothNumberMap[booth.Name] = idx
-						NumberToBooth[idx] = booth.Name
 						break
 					end
 				end
 			end
-			-- Fallback: if no TradePad found, try direct attribute
-			if not BoothNumberMap[booth.Name] then
-				local idx = booth:GetAttribute("Index") or booth:GetAttribute("BoothIndex")
-				if type(idx) == "string" then
-					idx = tonumber(idx)
-				end
-				if idx then
-					BoothNumberMap[booth.Name] = idx
-					NumberToBooth[idx] = booth.Name
-				end
+		end
+
+		-- Method 2: Direct booth attributes
+		if not idx then
+			idx = GetIndexFromAttributes(booth)
+		end
+
+		-- Method 3: Value objects inside booth
+		if not idx then
+			idx = GetIndexFromValues(booth)
+		end
+
+		-- Method 4: Extract from booth name
+		if not idx then
+			idx = ExtractNumberFromName(booth.Name)
+		end
+
+		if idx then
+			BoothNumberMap[booth.Name] = idx
+			NumberToBooth[idx] = booth.Name
+		else
+			table.insert(unmapped, booth)
+		end
+	end
+
+	-- Method 5: Position-based fallback for unmapped booths
+	-- Sort by X then Z and assign sequential numbers
+	if #unmapped > 0 then
+		table.sort(unmapped, function(a, b)
+			local pa = GetPos(a)
+			local pb = GetPos(b)
+			if math.abs(pa.X - pb.X) > 5 then
+				return pa.X < pb.X
+			else
+				return pa.Z < pb.Z
 			end
+		end)
+
+		local nextNum = 1
+		for _, booth in ipairs(unmapped) do
+			while NumberToBooth[nextNum] do
+				nextNum = nextNum + 1
+			end
+			BoothNumberMap[booth.Name] = nextNum
+			NumberToBooth[nextNum] = booth.Name
 		end
 	end
 end
@@ -366,7 +471,7 @@ local LastClaim = 0
 local FailCount = 0
 local SelectedSkin = GetConfig("SelectedSkin", "Default")
 local SelectedPet = GetConfig("SelectedPet", "")
-local ListPrice = GetConfig("ListPrice", "")
+local ListPrice = GetConfig("ListPrice", 99)
 local AutoList = GetConfig("AutoList", false)
 local HadBooth = false
 local PreviousListingCount = 0
@@ -747,6 +852,7 @@ local ClaimerGroup = ClaimerTab:AddLeftGroupbox("Controls", "sliders-horizontal"
 local StatusGroup = ClaimerTab:AddRightGroupbox("Status", "activity", false)
 
 local StatusLabel = StatusGroup:AddLabel("Status: Idle", false, 14)
+StatusGroup:AddLabel("Spawn: " .. string.format("%.0f, %.0f, %.0f", SpawnPos.X, SpawnPos.Y, SpawnPos.Z), false, 12)
 local BoothInfoLabel = StatusGroup:AddLabel("Booths: scanning...", false, 12)
 
 local skins, sMap = ScanSkins()
@@ -1277,6 +1383,13 @@ SetupAutoRejoin()
 task.spawn(function()
 	task.wait(1)
 	ScanBoothNumbers()
+
+	-- Debug: print booth mappings
+	local mappedCount = 0
+	for uuid, num in pairs(BoothNumberMap) do
+		mappedCount = mappedCount + 1
+	end
+	print("[BoothClaimer] Mapped " .. mappedCount .. " booths")
 
 	-- Update booth info label
 	local myBooth, occupied, unclaimed = GetAllBoothStatus()
